@@ -1,38 +1,35 @@
 from flask import Flask, request, jsonify
 import pandas as pd
-import mlflow.pyfunc
-import os
-
-# 🔹 تحديد المسار النسبي للنموذج داخل الحاوية
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "model")
-
-# ✅ تحميل الموديل مرة واحدة عند بدء التشغيل
-model = mlflow.pyfunc.load_model(MODEL_PATH)
+import joblib
 
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return jsonify({"message": "✅ Heart Disease MLflow model is running!"})
+# Load trained model
+model = joblib.load("model.pkl")
 
-@app.route("/invocations", methods=["POST"])
+# ✅ ترتيب الأعمدة كما تم أثناء التدريب
+FEATURE_ORDER = [
+    'Unnamed: 0', 'BMI', 'Smoking', 'AlcoholDrinking', 'Stroke',
+    'PhysicalHealth', 'MentalHealth', 'DiffWalking', 'Sex', 'AgeCategory',
+    'PhysicalActivity', 'GenHealth', 'SleepTime', 'Asthma', 'KidneyDisease',
+    'SkinCancer', 'Race_Asian', 'Race_Black', 'Race_Hispanic', 'Race_Other',
+    'Race_White', 'Diabetic_No, borderline diabetes', 'Diabetic_Yes',
+    'Diabetic_Yes (during pregnancy)'
+]
+
+@app.route("/predict", methods=["POST"])
 def predict():
     try:
         data = request.get_json()
-        if "dataframe_split" not in data:
-            return jsonify({"error": "Invalid JSON format. Expected 'dataframe_split' key."}), 400
 
-        df = pd.DataFrame(
-            data["dataframe_split"]["data"],
-            columns=data["dataframe_split"]["columns"]
-        )
+        # تأكد أن البيانات تحتوي كل الأعمدة بنفس الترتيب
+        df = pd.DataFrame([data])[FEATURE_ORDER]
 
-        predictions = model.predict(df)
-        return jsonify({"predictions": predictions.tolist()})
+        prediction = model.predict(df)
+        return jsonify({"prediction": int(prediction[0])})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    app.run(host="0.0.0.0", port=5000)
